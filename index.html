@@ -54,6 +54,13 @@
 <script src="utils/d3.v3.min.js"></script>
 <script src="utils/topojson.v1.min.js"></script>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+<script src="https://d3js.org/d3-array.v2.min.js"></script>
+<script src="https://d3js.org/d3-color.v1.min.js"></script>
+<script src="https://d3js.org/d3-format.v1.min.js"></script>
+<script src="https://d3js.org/d3-interpolate.v1.min.js"></script>
+<script src="https://d3js.org/d3-time.v1.min.js"></script>
+<script src="https://d3js.org/d3-time-format.v2.min.js"></script>
+<script src="https://d3js.org/d3-scale.v3.min.js"></script>
 <script>
 
 var width = 960,
@@ -79,68 +86,86 @@ svg.append("rect")
 
 var g = svg.append("g");
 
-d3.tsv("https://s3-us-west-2.amazonaws.com/vida-public/geo/us-state-names.tsv", function(error, names) {
+var redColor = d3.scaleLinear([0, 100], ["white", "red"]);
+var blueColor = d3.scaleLinear([0, 100], ["white", "blue"]);
 
-name_id_map = {};
-id_name_map = {};
 
-for (var i = 0; i < names.length; i++) {
-  name_id_map[names[i].name] = names[i].id;
-  id_name_map[names[i].id] = names[i].name;
-}
+// Promise.all(
+//   d3.tsv("https://s3-us-west-2.amazonaws.com/vida-public/geo/us-state-names.tsv"),
 
-d3.json("utils/us.json", function(error, us) {
-  if (error) throw error;
 
-  g.append("g")
-      .attr("id", "states")
-      .attr("class", "states-choropleth")
-    .selectAll("path")
-      .data(topojson.feature(us, us.objects.states).features)
-    .enter().append("path")
-      .attr("d", path)
-      .on("click", clicked)
-      .on("mousemove", function(d) {
-        var html = "";
+// )
 
-        html += "<div class=\"tooltip_kv\">";
-        html += "<span class=\"tooltip_key\">";
-        html += id_name_map[d.id];
-        html += "</span>";
-        html += "<span class=\"tooltip_value\">";
-        html += "";
-        html += "</span>";
-        html += "</div>";
 
-        $("#tooltip-container").html(html);
-        $(this).attr("fill-opacity", "0.8");
-        $("#tooltip-container").show();
-        
-        var coordinates = d3.mouse(this);
-        
-        var map_width = $('.states-choropleth')[0].getBoundingClientRect().width;
-        
-        if (d3.event.layerX < map_width / 2) {
-          d3.select("#tooltip-container")
-            .style("top", (d3.event.layerY + 15) + "px")
-            .style("left", (d3.event.layerX + 15) + "px");
-        } else {
-          var tooltip_width = $("#tooltip-container").width();
-          d3.select("#tooltip-container")
-            .style("top", (d3.event.layerY + 15) + "px")
-            .style("left", (d3.event.layerX - tooltip_width - 30) + "px");
-        }
-      })
-      .on("mouseout", function() {
-          $(this).attr("fill-opacity", "1.0");
-          $("#tooltip-container").hide();
-      });
+d3.tsv("data/clean/state.tsv", function(error, names) {
+  nameIdMap = {};
+  idNameMap = {};
+  idColorMap = {};
 
-  g.append("path")
-      .datum(topojson.mesh(us, us.objects.states, function(a, b) { return a !== b; }))
-      .attr("id", "state-borders")
-      .attr("d", path);
-});
+  for (var i = 0; i < names.length; i++) {
+    nameIdMap[names[i].name] = names[i].id;
+    idNameMap[names[i].id] = names[i].name;
+    if (names[i].party == "d") {
+      idColorMap[names[i].id] = blueColor(names[i].score*500);
+    }
+    else if (names[i].party == "r") {
+      idColorMap[names[i].id] = redColor(names[i].score*500);
+    }
+  }
+
+  d3.json("utils/us.json", function(error, us) {
+    if (error) throw error;
+
+    g.append("g")
+        .attr("id", "states")
+        .attr("class", "states-choropleth")
+      .selectAll("path")
+        .data(topojson.feature(us, us.objects.states).features)
+      .enter().append("path")
+        .attr("d", path)
+        .style("fill", function(p) { return idColorMap[p.id]; }) //d3.color(idColorMap[d.id]))
+        .on("click", clicked)
+        .on("mousemove", function(d) {
+          var html = "";
+
+          html += "<div class=\"tooltip_kv\">";
+          html += "<span class=\"tooltip_key\">";
+          html += idNameMap[d.id];
+          html += "</span>";
+          html += "<span class=\"tooltip_value\">";
+          html += "";
+          html += "</span>";
+          html += "</div>";
+
+          $("#tooltip-container").html(html);
+          $(this).attr("fill-opacity", "0.8");
+          $("#tooltip-container").show();
+          
+          var coordinates = d3.mouse(this);
+          
+          var map_width = $('.states-choropleth')[0].getBoundingClientRect().width;
+          
+          if (d3.event.layerX < map_width / 2) {
+            d3.select("#tooltip-container")
+              .style("top", (d3.event.layerY + 15) + "px")
+              .style("left", (d3.event.layerX + 15) + "px");
+          } else {
+            var tooltip_width = $("#tooltip-container").width();
+            d3.select("#tooltip-container")
+              .style("top", (d3.event.layerY + 15) + "px")
+              .style("left", (d3.event.layerX - tooltip_width - 30) + "px");
+          }
+        })
+        .on("mouseout", function() {
+            $(this).attr("fill-opacity", "1.0");
+            $("#tooltip-container").hide();
+        });
+
+    g.append("path")
+        .datum(topojson.mesh(us, us.objects.states, function(a, b) { return a !== b; }))
+        .attr("id", "state-borders")
+        .attr("d", path);
+  });
 
 });
 
